@@ -1,0 +1,24 @@
+# SignalWire Weather Agent - Environment Configuration
+# ==================================================
+
+# Required: WeatherAPI.com API Key
+# Get your free key at: https://www.weatherapi.com/
+WEATHERAPI_KEY=your-api-key-here
+
+# Optional: Authentication credentials (defaults provided)
+SWML_BASIC_AUTH_USER=dev
+SWML_BASIC_AUTH_PASSWORD=w00t
+
+# Optional: Local timezone (default: America/Los_Angeles)
+LOCAL_TZ=America/Los_Angeles
+
+# Optional: AWS Configuration (if not using aws configure)
+# AWS_ACCESS_KEY_ID=your-access-key
+# AWS_SECRET_ACCESS_KEY=your-secret-key
+# AWS_DEFAULT_REGION=us-east-1
+
+# Usage:
+# 1. Copy this file: cp examples/environment.example .env
+# 2. Edit .env with your values
+# 3. Source it: source .env
+# 4. Deploy: make deploy 
