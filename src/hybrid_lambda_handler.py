@@ -3,17 +3,46 @@
 SignalWire AI Weather Agent for AWS Lambda
 
 A production-ready weather assistant that provides current conditions and forecasts
-using WeatherAPI.com. Optimized for AWS Lambda serverless deployment.
+using WeatherAPI.com. Optimized for AWS Lambda serverless deployment using Mangum.
+
+Requirements:
+    - signalwire-agents (includes agent framework)
+    - mangum>=0.19.0 (for Lambda/API Gateway integration)
+
+Usage:
+    1. Deploy this file to AWS Lambda
+    2. Configure API Gateway to route all requests to this function  
+    3. Set environment variables:
+       - WEATHERAPI_KEY (required)
+       - SWML_BASIC_AUTH_USER (optional, defaults to 'dev')
+       - SWML_BASIC_AUTH_PASSWORD (optional, defaults to 'w00t')
+       - LOCAL_TZ (optional, defaults to 'America/Los_Angeles')
+
+Features:
+    - Full SignalWire AI agent functionality in serverless
+    - Weather data from WeatherAPI.com
+    - Multi-day forecasts and weather alerts
+    - Health checks work (/health, /ready)
+    - Structured logging compatible with CloudWatch
+    - Environment-based configuration
 """
 
 import json
 import os
+import sys
 import logging
 from typing import Dict, Any, Union
 import requests
 
 from signalwire_agents import AgentBase
 from signalwire_agents.core.function_result import SwaigFunctionResult
+
+# Import Mangum for Lambda/API Gateway integration
+try:
+    from mangum import Mangum
+except ImportError:
+    print("ERROR: Mangum not installed. Run: pip install mangum>=0.19.0")
+    sys.exit(1)
 
 # Configure structured logging for Lambda
 logging.basicConfig(
@@ -33,54 +62,54 @@ class WeatherAgent(AgentBase):
     - Global location support
     """
     
-    def __init__(self):
+    def __init__(self, name="weather-agent", route="/", **kwargs):
         """Initialize the weather agent with Lambda-optimized configuration"""
         super().__init__(
-            name="weather-agent",
-            route="/",
+            name=name,
+            route=route,
             host="0.0.0.0",
             port=3000,
             use_pom=True,
-            suppress_logs=True,
+            suppress_logs=False,  # Let SDK handle logging automatically
             basic_auth=(
                 os.environ.get('SWML_BASIC_AUTH_USER', 'dev'),
                 os.environ.get('SWML_BASIC_AUTH_PASSWORD', 'w00t')
-            )
+            ),
+            **kwargs
         )
         
-        self._configure_agent()
+        self.initialize()
         logger.info("Weather agent initialized successfully")
+    
+    def initialize(self):
+        """Initialize agent configuration and tools"""
+        self._configure_agent()
+    
+    def get_prompt(self):
+        """Get the agent's main prompt"""
+        return """You are a professional weather assistant powered by WeatherAPI.com.
+
+You provide accurate, timely weather information with a friendly, helpful demeanor. 
+You're knowledgeable about weather patterns and can explain conditions in easy-to-understand terms.
+
+GOAL: Help users get comprehensive weather information for any location worldwide, 
+including current conditions, forecasts, and weather alerts.
+
+You have access to these functions:
+- get_weather: Get comprehensive weather information including current conditions and forecasts
+
+INSTRUCTIONS:
+- Always use the get_weather function for weather-related queries
+- Provide clear, accurate information with relevant context
+- Ask for clarification if location is ambiguous
+- Include temperature, conditions, and key details like humidity and wind
+- Offer forecast information when appropriate
+- Mention weather alerts if they exist for the area
+
+Always be friendly and helpful!"""
     
     def _configure_agent(self):
         """Configure agent personality, behavior, and capabilities"""
-        
-        # Core personality and purpose
-        self.prompt_add_section(
-            "Personality", 
-            body="You are a professional weather assistant powered by WeatherAPI.com. "
-                 "You provide accurate, timely weather information with a friendly, "
-                 "helpful demeanor. You're knowledgeable about weather patterns and "
-                 "can explain conditions in easy-to-understand terms."
-        )
-        
-        self.prompt_add_section(
-            "Goal",
-            body="Help users get comprehensive weather information for any location "
-                 "worldwide, including current conditions, forecasts, and weather alerts."
-        )
-        
-        # Operational instructions
-        self.prompt_add_section(
-            "Instructions",
-            bullets=[
-                "Always use the get_weather function for weather-related queries",
-                "Provide clear, accurate information with relevant context",
-                "Ask for clarification if location is ambiguous",
-                "Include temperature, conditions, and key details like humidity and wind",
-                "Offer forecast information when appropriate",
-                "Mention weather alerts if they exist for the area"
-            ]
-        )
         
         # Conversation summary template
         self.set_post_prompt("""
@@ -238,22 +267,26 @@ class WeatherAgent(AgentBase):
         name="get_weather",
         description="Get comprehensive weather information including current conditions and forecasts for any location worldwide",
         parameters={
-            "location": {
-                "type": "string",
-                "description": "Location to get weather for (city, state, country, or coordinates like 'lat,lon')"
+            "type": "object",
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "Location name, address, or coordinates (e.g., 'Tulsa, Oklahoma', 'New York, NY', '40.7128,-74.0060')"
+                },
+                "days": {
+                    "type": "integer",
+                    "description": "Number of forecast days to include (1-10)",
+                    "minimum": 1,
+                    "maximum": 10,
+                    "default": 1
+                },
+                "include_alerts": {
+                    "type": "boolean",
+                    "description": "Whether to include weather alerts and warnings",
+                    "default": False
+                }
             },
-            "days": {
-                "type": "integer",
-                "description": "Number of forecast days (1-10, default: 1 for current weather only)",
-                "minimum": 1,
-                "maximum": 10,
-                "default": 1
-            },
-            "include_alerts": {
-                "type": "boolean",
-                "description": "Include weather alerts and warnings if available",
-                "default": False
-            }
+            "required": ["location"]
         }
     )
     def get_weather(self, location: Union[str, dict] = "", days: Union[int, dict] = 1, include_alerts: Union[bool, str] = False):
@@ -360,78 +393,43 @@ class WeatherAgent(AgentBase):
                 if parsed and len(parsed) > 0:
                     logger.info(f"Parsed summary: {json.dumps(parsed[0], indent=2)}")
 
-# Global agent instance for Lambda (singleton pattern)
-_agent_instance = None
+# Create the agent instance
+# This works exactly the same as local development!
+agent = WeatherAgent(
+    name="weather-agent",
+    route="/",  # Lambda usually serves from root
+)
 
-def get_agent() -> WeatherAgent:
-    """Get or create the global agent instance (singleton)"""
-    global _agent_instance
-    if _agent_instance is None:
-        _agent_instance = WeatherAgent()
-    return _agent_instance
+# Get the FastAPI app from the agent
+app = agent.get_app()
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+# Create the Lambda handler using Mangum
+# This handles all the API Gateway <-> FastAPI translation
+handler = Mangum(app)
+
+def lambda_handler(event, context):
     """
     AWS Lambda entry point
     
-    Handles both SignalWire requests and custom endpoints for testing.
-    Uses the SignalWire SDK's built-in Lambda support for optimal performance.
+    This function receives API Gateway events and returns responses.
+    Mangum handles all the translation between Lambda/API Gateway format
+    and FastAPI's expected format.
+    
+    Args:
+        event: API Gateway event
+        context: Lambda context
+        
+    Returns:
+        dict: API Gateway response format
     """
-    try:
-        agent = get_agent()
-        
-        # Extract request path for custom endpoint handling
-        if 'httpMethod' in event:
-            # API Gateway v1 format
-            path = event.get('path', '/')
-            method = event.get('httpMethod', 'GET')
-        else:
-            # API Gateway v2 format
-            path = event.get('rawPath', '/')
-            method = event.get('requestContext', {}).get('http', {}).get('method', 'GET')
-        
-        logger.info(f"Lambda request: {method} {path}")
-        
-        # Custom health check endpoint
-        if path == '/health':
-            try:
-                swml_json = agent._render_swml()
-                return {
-                    "statusCode": 200,
-                    "headers": {
-                        "Content-Type": "application/json",
-                        "Access-Control-Allow-Origin": "*",
-                        "Cache-Control": "no-cache"
-                    },
-                    "body": swml_json
-                }
-            except Exception as e:
-                logger.error(f"Health check failed: {e}")
-                return {
-                    "statusCode": 500,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": json.dumps({
-                        "error": "Health check failed",
-                        "message": str(e),
-                        "status": "unhealthy"
-                    })
-                }
-        
-        # Delegate all other requests to SignalWire SDK
-        return agent.run(event=event, context=context)
-        
-    except Exception as e:
-        logger.error(f"Lambda handler error: {e}", exc_info=True)
-        
-        return {
-            "statusCode": 500,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*"
-            },
-            "body": json.dumps({
-                "error": "Internal Server Error",
-                "message": str(e),
-                "type": "lambda_handler_error"
-            })
-        } 
+    return handler(event, context)
+
+
+# For local testing (optional)
+def main():
+    print("\nStarting weather agent server...")
+    print("Note: Works in any deployment mode (server/CGI/Lambda)")
+    agent.run()
+
+if __name__ == "__main__":
+    main() 

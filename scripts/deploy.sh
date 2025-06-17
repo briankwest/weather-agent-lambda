@@ -133,7 +133,7 @@ EOF
             --function-name "$FUNCTION_NAME" \
             --runtime python3.11 \
             --role "$role_arn" \
-            --handler lambda_function.lambda_handler \
+            --handler hybrid_lambda_handler.lambda_handler \
             --zip-file "fileb://$PROJECT_ROOT/$PACKAGE_NAME" \
             --timeout 30 \
             --memory-size 512 \

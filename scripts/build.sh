@@ -58,28 +58,8 @@ create_build_structure() {
     # Copy source as lambda_function.py
     cp "$PROJECT_ROOT/src/hybrid_lambda_handler.py" "$BUILD_DIR/lambda_function.py"
     
-    # Create requirements.txt for build
-    cat > "$BUILD_DIR/requirements.txt" << 'EOF'
-signalwire-agents>=0.1.0
-fastapi>=0.115.0
-uvicorn>=0.34.0
-pydantic>=2.0.0
-pydantic-core
-starlette>=0.40.0
-anyio>=4.0.0
-sniffio>=1.3.0
-h11>=0.16.0
-click>=8.0.0
-typing-extensions>=4.8.0
-annotated-types>=0.7.0
-structlog>=24.0.0
-PyYAML>=6.0.0
-requests>=2.32.3
-urllib3>=1.26.0
-certifi>=2021.5.25
-charset-normalizer>=2.0.0
-idna>=2.10
-EOF
+    # Create requirements.txt for build - use the project's requirements.txt to ensure consistency
+    cp "$PROJECT_ROOT/requirements.txt" "$BUILD_DIR/requirements.txt"
     
     log_success "Build structure created"
 }

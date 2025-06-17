@@ -7,12 +7,13 @@ import sys
 import os
 import unittest
 from unittest.mock import patch, MagicMock
+import json
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 try:
-    from hybrid_lambda_handler import WeatherAgent, lambda_handler, get_agent
+    from hybrid_lambda_handler import WeatherAgent, lambda_handler, agent, app, handler
 except ImportError as e:
     print(f"❌ Import error: {e}")
     print("💡 Make sure signalwire-agents is installed: pip install signalwire-agents")
@@ -135,26 +136,43 @@ class TestWeatherAgent(unittest.TestCase):
 class TestLambdaHandler(unittest.TestCase):
     """Test cases for the Lambda handler"""
     
-    def test_get_agent_singleton(self):
-        """Test that get_agent returns the same instance"""
-        agent1 = get_agent()
-        agent2 = get_agent()
-        self.assertIs(agent1, agent2)
+    def test_agent_instance(self):
+        """Test that agent instance is accessible"""
+        self.assertIsNotNone(agent)
+        self.assertIsInstance(agent, WeatherAgent)
     
-    def test_health_endpoint(self):
-        """Test health endpoint"""
+    def test_mangum_handler(self):
+        """Test that Mangum handler is properly configured"""
+        self.assertIsNotNone(handler)
+        self.assertIsNotNone(app)
+        # Verify app is the FastAPI app from the agent
+        self.assertEqual(app, agent.get_app())
+    
+    def test_health_endpoint_mangum(self):
+        """Test health endpoint with Mangum integration"""
+        # Create API Gateway event for health endpoint
         event = {
             "httpMethod": "GET",
             "path": "/health",
-            "headers": {},
-            "body": ""
+            "headers": {
+                "Authorization": "Basic ZGV2Oncwb3Q="  # dev:w00t in base64
+            },
+            "body": "",
+            "requestContext": {
+                "requestId": "test-request-id"
+            }
         }
         context = MagicMock()
         
         response = lambda_handler(event, context)
         
         self.assertEqual(response["statusCode"], 200)
-        self.assertIn("application/json", response["headers"]["Content-Type"])
+        self.assertIn("application/json", response["headers"]["content-type"])
+        
+        # Parse response body
+        response_body = json.loads(response["body"])
+        self.assertEqual(response_body["status"], "healthy")
+        self.assertEqual(response_body["agent"], "weather-agent")
     
     def test_invalid_path(self):
         """Test handling of requests to the root path (SWML generation)"""
@@ -176,6 +194,102 @@ class TestLambdaHandler(unittest.TestCase):
         except Exception as e:
             # If it fails, it should be due to missing auth, not a crash
             self.assertIsInstance(e, Exception)
+
+    def test_lambda_integration(self):
+        """Test Lambda integration using SDK's automatic detection"""
+        # Mock Lambda environment variables
+        original_env = os.environ.copy()
+        
+        try:
+            # Set Lambda environment variables
+            os.environ['AWS_LAMBDA_FUNCTION_NAME'] = 'weather-agent'
+            os.environ['LAMBDA_TASK_ROOT'] = '/var/task'
+            
+            # Create mock Lambda event
+            mock_event = {
+                'httpMethod': 'GET',
+                'path': '/',
+                'headers': {
+                    'Authorization': 'Basic ZGV2Oncwb3Q='  # dev:w00t in base64
+                },
+                'body': None
+            }
+            
+            mock_context = type('Context', (), {
+                'function_name': 'weather-agent',
+                'aws_request_id': 'test-request-id'
+            })()
+            
+            # Test Lambda handler
+            response = lambda_handler(mock_event, mock_context)
+            
+            # Verify response structure
+            self.assertIsInstance(response, dict)
+            self.assertIn('statusCode', response)
+            self.assertIn('headers', response)
+            self.assertIn('body', response)
+            
+            # Should return 200 for valid auth
+            self.assertEqual(response['statusCode'], 200)
+            
+        finally:
+            # Restore original environment
+            os.environ.clear()
+            os.environ.update(original_env)
+
+    def test_lambda_swaig_function_call(self):
+        """Test SWAIG function call through Lambda"""
+        original_env = os.environ.copy()
+        
+        try:
+            # Set Lambda environment and API key
+            os.environ['AWS_LAMBDA_FUNCTION_NAME'] = 'weather-agent'
+            os.environ['LAMBDA_TASK_ROOT'] = '/var/task'
+            os.environ['WEATHERAPI_KEY'] = 'test-key'  # Mock API key
+            
+            # Mock Lambda event for SWAIG function call
+            mock_event = {
+                'httpMethod': 'POST',
+                'path': '/swaig',
+                'headers': {
+                    'Authorization': 'Basic ZGV2Oncwb3Q=',  # dev:w00t
+                    'Content-Type': 'application/json'
+                },
+                'body': json.dumps({
+                    'function': 'get_weather',
+                    'argument': {
+                        'parsed': [{
+                            'location': 'New York',
+                            'days': 1,
+                            'include_alerts': False
+                        }]
+                    },
+                    'call_id': 'test-call-123'
+                })
+            }
+            
+            mock_context = type('Context', (), {
+                'function_name': 'weather-agent',
+                'aws_request_id': 'test-request-id'
+            })()
+            
+            # Test Lambda handler with SWAIG call
+            response = lambda_handler(mock_event, mock_context)
+            
+            # Verify response structure
+            self.assertIsInstance(response, dict)
+            self.assertEqual(response['statusCode'], 200)
+            
+            # Parse response body
+            response_body = json.loads(response['body'])
+            
+            # Should contain function response (even if API call fails due to mock key)
+            self.assertIsInstance(response_body, dict)
+            
+        finally:
+            # Restore original environment
+            os.environ.clear()
+            os.environ.update(original_env)
 
 def run_tests():
     """Run all tests"""

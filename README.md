@@ -22,19 +22,45 @@ A production-ready SignalWire AI agent that provides comprehensive weather infor
 
 ## 🏗️ Architecture
 
+The weather agent uses **Mangum** to seamlessly integrate SignalWire agents with AWS Lambda:
+
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   SignalWire    │    │   AWS Lambda     │    │  WeatherAPI.com │
 │   Voice/SMS     │───▶│  Weather Agent   │───▶│   Weather Data  │
-│   Applications  │    │                  │    │                 │
+│   Applications  │    │  (Mangum+FastAPI)│    │                 │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                               │
                               ▼
-                       ┌──────────────────┐
-                       │   CloudWatch     │
-                       │   Logs & Metrics │
-                       └──────────────────┘
+                    ┌──────────────────┐
+                    │     Mangum       │
+                    │ • API Gateway    │
+                    │ • FastAPI Bridge │
+                    │ • HTTP Routing   │
+                    │ • Error Handling │
+                    └──────────────────┘
 ```
+
+### 🎯 **Mangum Integration Benefits**
+
+- **🔗 Seamless Integration**: Mangum bridges API Gateway and FastAPI automatically
+- **🛡️ Full Feature Support**: All FastAPI features work including health endpoints
+- **🔄 Standard Routing**: Normal HTTP routing with `/health`, `/ready`, `/swaig` endpoints
+- **📊 Proper Responses**: Native FastAPI response handling
+- **⚡ Performance**: Optimized ASGI to Lambda translation
+
+### 📍 **Available Endpoints**
+
+**All Modes (Lambda & Local):**
+- `/` - Returns SWML configuration
+- `/swaig` - SWAIG function execution
+- `/post_prompt` - Post-prompt callbacks
+- `/check_for_input` - Input validation callbacks
+- `/health` - Health check endpoint
+- `/ready` - Readiness check endpoint
+- `/debug` - Debug information
+
+**Key Improvement:** With Mangum, all FastAPI endpoints work in Lambda mode!
 
 ## 🚀 Quick Start
 
