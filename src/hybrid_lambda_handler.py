@@ -71,10 +71,8 @@ class WeatherAgent(AgentBase):
             port=3000,
             use_pom=True,
             suppress_logs=False,  # Let SDK handle logging automatically
-            basic_auth=(
-                os.environ.get('SWML_BASIC_AUTH_USER', 'dev'),
-                os.environ.get('SWML_BASIC_AUTH_PASSWORD', 'w00t')
-            ),
+            # Remove basic_auth to prevent double authentication in Lambda URLs
+            # Lambda handles auth through environment variables
             **kwargs
         )
         

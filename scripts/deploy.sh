@@ -240,7 +240,7 @@ setup_function_url() {
     
     # Create authenticated URL
     local url_without_protocol=$(echo "$function_url" | sed 's|https://||')
-    local auth_url="https://${SWML_BASIC_AUTH_USER}:${SWML_BASIC_AUTH_PASSWORD}@${url_without_protocol}"
+    local auth_url="https://${url_without_protocol}"
     
     # Export for current session
     export AWS_LAMBDA_FUNCTION_URL="$auth_url"
