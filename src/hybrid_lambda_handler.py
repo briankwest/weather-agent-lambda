@@ -267,26 +267,22 @@ Always be friendly and helpful!"""
         name="get_weather",
         description="Get comprehensive weather information including current conditions and forecasts for any location worldwide",
         parameters={
-            "type": "object",
-            "properties": {
-                "location": {
-                    "type": "string",
-                    "description": "Location name, address, or coordinates (e.g., 'Tulsa, Oklahoma', 'New York, NY', '40.7128,-74.0060')"
-                },
-                "days": {
-                    "type": "integer",
-                    "description": "Number of forecast days to include (1-10)",
-                    "minimum": 1,
-                    "maximum": 10,
-                    "default": 1
-                },
-                "include_alerts": {
-                    "type": "boolean",
-                    "description": "Whether to include weather alerts and warnings",
-                    "default": False
-                }
+            "location": {
+                "type": "string",
+                "description": "Location name, address, or coordinates (e.g., 'Tulsa, Oklahoma', 'New York, NY', '40.7128,-74.0060')"
             },
-            "required": ["location"]
+            "days": {
+                "type": "integer",
+                "description": "Number of forecast days to include (1-10)",
+                "minimum": 1,
+                "maximum": 10,
+                "default": 1
+            },
+            "include_alerts": {
+                "type": "boolean",
+                "description": "Whether to include weather alerts and warnings",
+                "default": False
+            }
         }
     )
     def get_weather(self, location: Union[str, dict] = "", days: Union[int, dict] = 1, include_alerts: Union[bool, str] = False):
